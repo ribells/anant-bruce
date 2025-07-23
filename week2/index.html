@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Projectile Study</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+</head>
+<body>
+	<div id="container"></div>
+	<script src="js/three.min.js"></script>
+	<script src="js/Detector.js"></script>
+	<script src="js/OrbitControls.js"></script>
+	<script src="js/GLTFLoader.js"></script>
+	<script src="js/THREEx.KeyboardState.js"></script>
+	<script src="js/THREEx.FullScreen.js"></script>
+	<script src="js/THREEx.WindowResize.js"></script>
+	<script src="js/starfield.js"></script>
+	<script src="js/TrackballControls.js"></script>
+	<script src="js/jquery-1.9.1.js"></script>
+	<!--script src="js/Vector3.js"></script-->
+	
+   	<script>
+		//starfield
+   		var container = document.getElementById('container');
+   		var starfield = new Starfield();
+   		starfield.initialise(container);
+   		//starfield.start();
+   
+   		function randomise() {
+   			starfield.stop();
+  			starfield.stars = Math.random()*1000 + 50;
+			starfield.minVelocity = Math.random()*30+5;
+   			starfield.maxVelocity = Math.random()*50 + starfield.minVelocity;			
+   			starfield.start();
+		}
+	</script>
+
+	<div id="ThreeJS" style="position: absolute; left:px; top:0px"></div>
+
+	<script>
+		class Projectile {
+		    constructor(model, color) {
+				this.skew = Math.floor(Math.random()*3)-1.5;
+				this.scale = (Math.random()*0.75)+0.375;
+				this.model = model;
+				this.color = color;
+				this.distance = (Math.random()*500)+300;
+				this.velocity = 0;
+				this.vector = [0,0,0];
+				this.acceleration = [0,0,0];
+		    }
+		}
+
+		//variables to be controlled from external to main
+		var viewDistance = 800;
+		var camera = "";
+		var coss = "";
+		var sun = "";
+		var goal = "";
+		const gravity = 500000;
+		const dt = 0.004; // 0.008 years is equal to 2.92 days
+		const softeningConstant = 0.15;
+		const sun_mass = 1;
+	
+		// MAIN
+		function main() {
+			// standard global variables
+			var container, scene, renderer, controls, stats;
+			var keyboard = new THREEx.KeyboardState();
+			var clock = new THREE.Clock();
+
+			// custom global variables
+			var world;
+			var container = document.getElementById('ThreeJS');
+			var time = 0;
+			var newPosition = new THREE.Vector3();
+			var matrix = new THREE.Matrix4();
+			var sun_rotate_time = 0;
+			var temp = new THREE.Vector3;
+			var stop = 1;
+			var SCREEN_WIDTH = window.innerWidth, SCREEN_HEIGHT = window.innerHeight;
+			var VIEW_ANGLE = 45, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.1, FAR = 20000;
+			var Projectiles = [/* x-rot, scale, model, color, distance, velocity, vector */];
+			var num_Projectiles = 200;
+			var min_dst = 10000000;
+
+			function distance(x1, x2, y1, y2, z1, z2 ) {
+				return Math.sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2) + (z1 - z2)*(z1 - z2));
+			}
+
+			function ThreeJS()
+			{
+				// CAMERA
+				camera = new THREE.PerspectiveCamera( VIEW_ANGLE, window.innerWidth / window.innerHeight, NEAR, FAR);
+				camera.position.set(0, 0, 1000);
+                camera.position.setZ(200)
+                camera.position.setY(1000)
+                camera.updateProjectionMatrix();
+
+				// SCENE
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0x00a0ff );
+				camera.lookAt( scene.position );
+
+				// SUN
+				const sunTexture = new THREE.TextureLoader().load("img/sun.png");
+				geometry = new THREE.SphereGeometry( 15, 32, 40 ); 
+				material = new THREE.MeshBasicMaterial( { color: "white", map: sunTexture }); 
+				sun = new THREE.Mesh( geometry, material );  
+				sun.scale.set (1.1, 1.1, 1.1);
+				goal = new THREE.Object3D;
+				sun.add(goal);
+				scene.add(sun);
+				goal.position.set(0, 0, 1000);
+                goal.position.setZ(200)
+                goal.position.setY(965)
+				const color = 0xFFFFFF;
+				const light = new THREE.PointLight(color, 1, 2000);
+				sun.add(light);
+			}
+			ThreeJS();
+
+			function Creations()
+			{
+				//Projectiles generation
+				for (n=0; n<num_Projectiles; n++) {
+					geometry = new THREE.SphereGeometry(5, 6, 10);
+					color = "#"+(0x1000000+Math.random()*0xffffff).toString(16).substr(1,6);
+					material = new THREE.MeshStandardMaterial( { color: color } ); 
+					prj_model = new THREE.Mesh( geometry, material );
+					prj = new Projectile(prj_model, color);
+					prj.model.scale.set (prj.scale, prj.scale, prj.scale);
+					
+					//set starting position, speed, and velocity vector
+					var seed = 2*Math.PI*Math.random()-1;
+					//just an approximate approach to adding a z skew to the y rotation
+					prj.model.position.set ((sun.position.x + prj.distance) * Math.sin(seed), 
+					                    	(sun.position.y + prj.distance) * Math.cos(seed) * ((2*Math.PI-prj.skew)/(2*Math.PI)),
+					                    	(sun.position.z + prj.distance) * Math.cos(seed) * (prj.skew/(2*Math.PI)));
+				
+					prj.velocity = Math.sqrt(gravity*sun_mass/prj.distance);
+					//falling straight toward the planet
+					prj.vector = [0, 1, 0];
+				    sun.add(prj.model)
+					Projectiles.push(prj);				
+				}
+				
+				function updatePositionVectors(a) {
+					Projectiles[a].model.position.x = Projectiles[a].model.position.x + Projectiles[a].vector[0] * dt;
+					Projectiles[a].model.position.y = Projectiles[a].model.position.y + Projectiles[a].vector[1] * dt;
+					Projectiles[a].model.position.z = Projectiles[a].model.position.z + Projectiles[a].vector[2] * dt;
+					dst = distance(Projectiles[a].model.position.x, sun.position.x, 
+						           Projectiles[a].model.position.y, sun.position.y,
+						           Projectiles[a].model.position.z, sun.position.z);
+
+					if (dst < 10) {
+						//delete the Projectiles (or other choice) here
+						Projectiles[a].model.position.x = 100000000;
+						Projectiles[a].model.position.y = 100000000;
+						Projectiles[a].model.position.z = 100000000;					
+					}
+				}
+				
+				function updateVelocityVectors(a) {
+					Projectiles[a].vector[0] += Projectiles[a].acceleration[0] * dt;
+					Projectiles[a].vector[1] += Projectiles[a].acceleration[1] * dt;
+					Projectiles[a].vector[2] += Projectiles[a].acceleration[2] * dt;
+				}
+				
+				function updateAccelerationVectors(a) {
+					let ax = 0;
+					let ay = 0;
+					let az = 0;
+
+					const dx = -Projectiles[a].model.position.x;
+					const dy = -Projectiles[a].model.position.y;
+					const dz = -Projectiles[a].model.position.z;
+
+					const distSq = dx * dx + dy * dy + dz * dz;
+
+					const f = (gravity * sun_mass) /
+					          (distSq * Math.sqrt(distSq + softeningConstant));
+
+					ax += dx * f;
+					ay += dy * f;
+					az += dz * f;
+
+					Projectiles[a].acceleration[0] = ax;
+					Projectiles[a].acceleration[1] = ay;
+					Projectiles[a].acceleration[2] = az;
+				}
+
+				function checkCollision(i, j) {
+                        const distance = Math.sqrt((Projectiles[i].model.position.x - Projectiles[j].model.position.x) * 
+                                                (Projectiles[i].model.position.x - Projectiles[j].model.position.x) + 
+                                                (Projectiles[i].model.position.y - Projectiles[j].model.position.y) * 
+                                                (Projectiles[i].model.position.y - Projectiles[j].model.position.y) +
+                                                (Projectiles[i].model.position.z - Projectiles[j].model.position.z) * 
+                                                (Projectiles[i].model.position.z - Projectiles[j].model.position.z));
+                        if (distance/4.8 < (Projectiles[i].scale) + (Projectiles[j].scale)) {
+                            return true;
+                        }
+                }
+
+                function move() {
+                    //Projectile movement
+                    for (i=0; i<num_Projectiles; i++) {
+                        updateAccelerationVectors(i);
+                        updateVelocityVectors(i);
+                        updatePositionVectors(i);
+                    }
+
+                    //collisions
+                    for (i=0; i<num_Projectiles; i++) {
+                        for (j=0; j<i; j++) {
+                            if (checkCollision(i, j) == true) {
+								//code a collision response
+                            }
+                        }
+                    }                 
+                }	
+                setInterval(move, 10);
+			}
+		
+			Creations();
+
+			// CONTROLS
+			controls = new THREE.TrackballControls( camera );
+			controls.rotateSpeed = 1;
+		    controls.noPan = false;
+		
+			// RENDERER
+			if ( Detector.webgl ) {
+				renderer = new THREE.WebGLRenderer({ antialias: true,alpha:true });
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.setClearColor(0x000000, 0);
+			} else {
+				renderer = new THREE.CanvasRenderer();
+			}
+			renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+			window.addEventListener('resize', () => {
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+			})
+			container.appendChild( renderer.domElement );
+
+			// EVENTS
+			THREEx.WindowResize(renderer, camera);
+			THREEx.FullScreen.bindKey({ charCode : 'm'.charCodeAt(0) })
+			
+			function handleKeyboard() {
+				//sun movement
+				if ( keyboard.pressed("f") ) {
+					sun.translateY(65);
+					temp.setFromMatrixPosition(goal.matrixWorld);
+					camera.position.lerp(temp, 1);
+					camera.lookAt( sun.position );
+                    controls.target.set(sun.position.x, sun.position.y, sun.position.z);
+				}
+			}
+
+			function update() {
+			//only once all Projectile models are loaded fully
+				if( Projectiles.length == num_Projectiles ) {
+					time++
+					sun_rotate_time++;
+				}
+			}
+
+			function render() 
+			{
+				renderer.render( scene, camera );
+				controls.update();
+			}
+		
+			function animate() {
+				requestAnimationFrame( animate );
+				update();
+				handleKeyboard();
+				render();
+			}
+			animate();
+		}
+		main();
+	</script>
+</body>
+</html>

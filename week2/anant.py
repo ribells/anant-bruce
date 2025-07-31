@@ -96,42 +96,29 @@ class Missile:
     self.location = location
     
     #create the visual missile
-	bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=depth)
-	missile = bpy.context.object
-	missile.location = location
-	nose = missile.data.vertices[-1].co.z + 2.5
-	bpy.ops.object.editmode_toggle() 
-	bpy.ops.mesh.primitive_cone_add(radius1=0.8, depth=2, location=(0,0,nose)) 
-	bpy.ops.object.editmode_toggle()
-	missile.data.materials.append(mat)
-	
-  def shoot(duration):
-	  print("Shooting missile 1 from " + self.location)
-	  import time
-	  duration = duration  # Loop for the duration
-	  start_time = time.time()
-	  
-	  print("Looping...")
-	  while time.time() - start_time < duration:
-		  # Your code to be executed in the loop
-		  
-		  missile.location = self.location + [1, 0, 0]
-		  time.sleep(500)  # Sleep the visualization while missile moves
-
-missile_1 = Missile(0.8, 5, pts[0])
-missile_1.shoot(10)
-
-# follow path constraint
-#con = missile.constraints.new('FOLLOW_PATH')
-#con.target = curve_obj
-#con.use_curve_follow = True
-#curve_data.use_path=True
-#curve_data.path_duration = TOTAL_FRAMES
-#curve_data.eval_time = 0
-#curve_data.keyframe_insert(data_path="eval_time", frame=1)
-#curve_data.eval_time = TOTAL_FRAMES
-#curve_data.keyframe_insert(data_path="eval_time", frame=TOTAL_FRAMES)
-
+    bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=depth)
+    missile = bpy.context.object
+    missile.location = location
+    nose = missile.data.vertices[-1].co.z + 2.5
+    bpy.ops.object.editmode_toggle() 
+    bpy.ops.mesh.primitive_cone_add(radius1=0.8, depth=2, location=(0,0,nose)) 
+    bpy.ops.object.editmode_toggle()
+    missile.data.materials.append(mat)
+    
+    self.missile = missile
+    
+  def shoot(self, duration):
+      #print("Shooting missile 1 from " + self.location)
+      import time
+      duration = duration  # Loop for the duration
+      start_time = time.time()
+      
+      print("Looping...")
+      while time.time() - start_time < duration:
+          # Your code to be executed in the loop
+          self.location[0] += 1.0
+          self.missile.location = self.location
+          time.sleep(1)  # Sleep one second while missile moves
 
 missile_1 = Missile(0.8, 5, pts[0])
 missile_1.shoot(10)

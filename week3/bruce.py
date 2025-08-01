@@ -1,4 +1,5 @@
 # https://www.w3schools.com/python/python_oop.asp
+# https://www.youtube.com/watch?v=nmJqIaSZlRs
 
 # ---------------------------------------------------------------
 #  NYC  →  DC   3-D  VISUALISER  (Blender 3.x)
@@ -90,6 +91,7 @@ curve_obj = bpy.data.objects.new("TrajectoryCurve", curve_data)
 bpy.context.collection.objects.link(curve_obj)
 curve_obj.location = earth.location
 
+start_frame = 1
 # ------------------------- 6. MISSILES --------------------------
 class Missile:
   def __init__(self, radius, depth, location):
@@ -105,19 +107,23 @@ class Missile:
     bpy.ops.object.editmode_toggle()
     missile.data.materials.append(mat)
     
+    missile.keyframe_insert("location", frame=start_frame)
+    
     self.missile = missile
     
   def shoot(self, duration):
-	#print("Shooting missile 1 from " + self.location)
 	import time
 	duration = duration  # Loop for the duration
 	start_time = time.time()
+	keyframe_time = 10
 	
 	print("Looping...")
 	while time.time() - start_time < duration:
 	  # Your code to be executed in the loop
 	  self.location[0] += 1.0
 	  self.missile.location = self.location
+	  self.missile.keyframe_insert("location", frame=keyframe_time)
+	  keyframe_time = keyframe_time + 10
 	  time.sleep(1)  # Sleep one second while missile moves
 
 missile_1 = Missile(0.8, 5, pts[0])

@@ -96,6 +96,8 @@ start_frame = 1
 class Missile:
   def __init__(self, radius, depth, location):
     self.location = location
+    self.direction = [0,0,0]
+    self.velocity = 0
     
     #create the visual missile
     bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=depth)
@@ -111,34 +113,37 @@ class Missile:
     
     self.missile = missile
     
-  def shoot(self, duration):
-	import time
-	duration = duration  # Loop for the duration
-	start_time = time.time()
-	keyframe_time = 10
-	
-	print("Looping...")
-	while time.time() - start_time < duration:
-	  # Your code to be executed in the loop
-	  self.location[0] += 1.0
-	  self.missile.location = self.location
-	  self.missile.keyframe_insert("location", frame=keyframe_time)
-	  keyframe_time = keyframe_time + 10
-	  time.sleep(1)  # Sleep one second while missile moves
+  def calculateMovement(self, dt):
+        # Update velocities and positions
+        vz = G * dt
+        dx = self.direction[0] * self.velocity * dt
+        dy = self.direction[1] * self.velocity * dt
+        dz = self.direction[2] * self.velocity * dt - vz
+        return [dx, dy, dz]
+    
+  def shoot(self, duration, direction, velocity):
+    import time
+    duration = duration  # Loop for the duration
+    self.direction = direction
+    self.velocity = velocity
+    start_time = time.time()
+    keyframe_time = 11
+    
+    print("Looping...")
+    while time.time() - start_time < duration:
+      # Your code to be executed in the loop
+      self.location += self.calculateMovement(.01)
+      if(self.location[2] < 0):
+        self.location[2] = 0
+        self.direction[2] = 0
 
+      self.missile.location = self.location
+      self.missile.keyframe_insert("location", frame=keyframe_time)
+      keyframe_time = keyframe_time + 10
+      time.sleep(1)  # Sleep one second while missile moves
+     
 missile_1 = Missile(0.8, 5, pts[0])
-missile_1.shoot(10)
-
-# follow path constraint
-#con = missile.constraints.new('FOLLOW_PATH')
-#con.target = curve_obj
-#con.use_curve_follow = True
-#curve_data.use_path=True
-#curve_data.path_duration = TOTAL_FRAMES
-#curve_data.eval_time = 0
-#curve_data.keyframe_insert(data_path="eval_time", frame=1)
-#curve_data.eval_time = TOTAL_FRAMES
-#curve_data.keyframe_insert(data_path="eval_time", frame=TOTAL_FRAMES)
+missile_1.shoot(100,[1, 1, 1], 100) #shoot a missile and simulate for 100 timesteps
 
 # -------------------- 7. DOTTED PREDICTION LINE ----------------
 for idx,p in enumerate(pts[::DASH_EVERY]):

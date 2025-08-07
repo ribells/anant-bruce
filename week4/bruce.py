@@ -96,8 +96,8 @@ start_frame = 1
 class Missile:
   def __init__(self, radius, depth, location):
     self.location = location
-    self.direction = [0,0,0]
-    self.velocity = 0
+    self.vector = [0,0,0]
+    self.acceleration = [0,0,0]
     
     #create the visual missile
     bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=depth)
@@ -113,37 +113,68 @@ class Missile:
     
     self.missile = missile
     
-  def calculateMovement(self, dt):
-        # Update velocities and positions
-        vz = G * dt
-        dx = self.direction[0] * self.velocity * dt
-        dy = self.direction[1] * self.velocity * dt
-        dz = self.direction[2] * self.velocity * dt - vz
-        return [dx, dy, dz]
+  def updatePosition(self, dt):
+    # Update position of missile
+    self.location[0] = self.location[0] + self.vector[0] * dt;
+    self.location[1] = self.location[1] + self.vector[1] * dt;
+    self.location[2] = self.location[2] + self.vector[2] * dt;
     
-  def shoot(self, duration, direction, velocity):
+  def updateVelocity(self, dt):
+    self.vector[0] += self.acceleration[0] * dt;
+    self.vector[1] += self.acceleration[1] * dt;
+    self.vector[2] += self.acceleration[2] * dt;
+    
+  def updateAcceleration(self, dt):
+    ax = 0;
+    ay = 0;
+    az = 0;
+    
+    dx = self.location[0] *-1
+    dy = self.location[1] *-1
+    dz = self.location[2] *-1
+    
+    distSq = dx * dx + dy * dy + dz * dz;
+    
+    f = 0
+    g = 0
+    if (distSq != 0):
+      g = G / (distSq * math.sqrt(distSq));
+      f = 0.99
+    
+    ax += dx * f
+    ay += dy * f
+    az += dz * g
+    
+    self.acceleration[0] = ax
+    self.acceleration[1] = ay
+    self.acceleration[2] = az
+    
+  def shoot(self, duration, vector, velocity):
     import time
     duration = duration  # Loop for the duration
-    self.direction = direction
+    self.vector = vector
     self.velocity = velocity
     start_time = time.time()
     keyframe_time = 11
     
-    print("Looping...")
+    i=1
     while time.time() - start_time < duration:
       # Your code to be executed in the loop
-      self.location += self.calculateMovement(.01)
-      if(self.location[2] < 0):
-        self.location[2] = 0
-        self.direction[2] = 0
+      self.updateAcceleration(.01)
+      self.updateVelocity(.01)
+      self.updatePosition(.01)
 
       self.missile.location = self.location
       self.missile.keyframe_insert("location", frame=keyframe_time)
       keyframe_time = keyframe_time + 10
-      time.sleep(1)  # Sleep one second while missile moves
+      #time.sleep(1) # Sleep one second while missile moves
+      i = i+1
+
+      if(self.location[2] < 0):
+        self.location[2] == 0
      
-missile_1 = Missile(0.8, 5, pts[0])
-missile_1.shoot(100,[1, 1, 1], 100) #shoot a missile and simulate for 100 timesteps
+missile_1 = Missile(0.8, 5, [0,0,0])
+missile_1.shoot(.5, [1, 0, 14.2], 100)  # shoot a missile and simulate for 100 timesteps
 
 # -------------------- 7. DOTTED PREDICTION LINE ----------------
 for idx,p in enumerate(pts[::DASH_EVERY]):

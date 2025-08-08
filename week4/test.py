@@ -96,3 +96,55 @@ class Missile:
 
 missile_1 = Missile(0.8, 5, [0,0,0])
 missile_1.shoot(.1, [1, 0, 14], 100)  # shoot a missile and simulate for 100 timesteps
+
+import numpy as np
+
+def get_force_components(direction_vector, total_force):
+    """
+    direction_vector: tuple or list (dx, dy, dz)
+    total_force: scalar magnitude of force
+    
+    Returns: (Fx, Fy, Fz)
+    """
+    d = np.array(direction_vector, dtype=float)
+    magnitude = np.linalg.norm(d)
+    
+    if magnitude == 0:
+        raise ValueError("Direction vector magnitude cannot be zero.")
+    
+    unit_vector = d / magnitude
+    components = total_force * unit_vector
+    return tuple(components)
+
+# Example get_force_components usage
+direction = (1, 0, 14)
+F_total = 100  # Newtons
+
+Fx, Fy, Fz = force_components(direction, F_total)
+print(f"[{Fx:.2f}, {Fy:.2f}, {Fz:.2f}]")
+
+def get_force_from_angles(F_total, azimuth_deg, elevation_deg):
+    """
+    F_total: total force magnitude
+    azimuth_deg: angle in degrees from x-axis in the x-y plane (0° = along +x)
+    elevation_deg: angle in degrees above the x-y plane (0° = flat, +90° = straight up)
+    
+    Returns: (Fx, Fy, Fz)
+    """
+    # Convert to radians
+    azimuth = math.radians(azimuth_deg)
+    elevation = math.radians(elevation_deg)
+    
+    Fx = F_total * math.cos(elevation) * math.cos(azimuth)
+    Fy = F_total * math.cos(elevation) * math.sin(azimuth)
+    Fz = F_total * math.sin(elevation)
+    
+    return Fx, Fy, Fz
+
+# Example get_force_from_angles usage:
+theta = 45     # azimuth in degrees
+phi = 30       # elevation in degrees
+F_total = 100  # Newtons
+
+Fx, Fy, Fz = get_force_from_angles(F_total, theta, phi)
+print(f"[{Fx:.2f}, {Fy:.2f}, {Fz:.2f}]")

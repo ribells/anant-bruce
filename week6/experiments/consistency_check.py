@@ -1,7 +1,8 @@
 # experiments/consistency_check.py
 import csv, numpy as np
 from radars import RADARS_ECEF
-from sim.truth_provider import ScriptedTruth
+from sim.truth_provider import DynamicTruth
+provider = DynamicTruth(blender_state_fun)
 from sim.measurements import simulate_radar_measurements
 from tracking.ekf import EKF
 

@@ -31,7 +31,6 @@ except Exception:
 # Wire the truth provider to call Blender each time step without changing measurement/EKF code.
 provider = DynamicTruth(blender_state_fn)
 
-
 def _get_radar_ecef_by_id(rid):
     """
     Robustly fetch a radar ECEF by radar id from RADARS_ECEF, whether it is a list of dicts
@@ -52,16 +51,19 @@ def _get_radar_ecef_by_id(rid):
             return RADARS_ECEF["ecef_m"]
     raise TypeError("RADARS_ECEF must be a list/tuple of dicts or a dict keyed by radar id")
 
-
 def run(duration_s=60.0, dt=0.5, qa=0.1,
         sigmas=(50.0, 0.0010, 0.0010, 3.0),
-        out_csv="runs/run_consistency.csv"):
+        out_csv="runs/run_consistency.csv",
+        missile_type="supersonic_cruise",
+        flight_state_schedule=None):
     """
     Consistency run that:
     - pulls ground-truth state from Blender via blender_state_fn(t),
-    - simulates radar measurements,
+    - simulates radar measurements (advanced fields included),
     - runs the EKF predict/update,
     - writes a single CSV with truth, NIS, per-radar measurements, and R diag entries.
+
+    flight_state_schedule: optional callable t->state string ("cruise","maneuver","terminal","evasive")
     """
     # Randomness for measurement noise, gating, and scheduling
     rng = np.random.default_rng(42)
@@ -78,7 +80,6 @@ def run(duration_s=60.0, dt=0.5, qa=0.1,
     ekf = EKF(x0, P0, qa)
 
     # Measurement covariance diagonal from sigmas (range, az, el, dop)
-    # Fix: compute elementwise square from tuple -> array
     R_diag = np.array(sigmas, dtype=float) ** 2
 
     # Ensure output directory exists
@@ -95,7 +96,9 @@ def run(duration_s=60.0, dt=0.5, qa=0.1,
             "nis",
             "radar_id",
             "range", "az", "el", "dop",
-            "R11", "R22", "R33", "R44"
+            "R11", "R22", "R33", "R44",
+            # Advanced fields (flat scalars; arrays can be saved to sidecar later)
+            "rcs_dbsm", "snr_db", "quality"
         ]
         w.writerow(header)
 
@@ -105,28 +108,42 @@ def run(duration_s=60.0, dt=0.5, qa=0.1,
             # Truth state from Blender-backed provider
             p, v = truth.step(t, dt)
 
+            # Determine flight state if schedule provided
+            if callable(flight_state_schedule):
+                flight_state = flight_state_schedule(t)
+            else:
+                # Simple example schedule: cruise then terminal
+                flight_state = "cruise" if t < 0.8*duration_s else "terminal"
+
+            meas_context = {
+                "missile_type": missile_type,
+                "flight_state": flight_state,
+                "spin_hz": 0.0
+            }
+
             # EKF time update
             ekf.predict(dt)
 
-            # Generate all radar measurements available at time t
-            meas_list = simulate_radar_measurements(p, v, t, last_times, rng)
+            # Generate all radar measurements available at time t (with advanced fields)
+            meas_list = simulate_radar_measurements(p, v, t, last_times, rng, meas_context=meas_context)
 
             # Process each measurement independently (same R for all; if per-radar R differs, adjust here)
             R = np.diag(R_diag)
             for meas in meas_list:
                 rid = meas["id"]
                 z = np.array(meas["z"], dtype=float)
-
                 radar_ecef = _get_radar_ecef_by_id(rid)
 
                 # EKF measurement update for this radar
                 nis = ekf.update_radar(z, R, radar_ecef)
 
-                # Persist a row per processed measurement
-                w.writerow([t, *p, *v, nis, rid, *z, *R_diag])
+                # Persist a row per processed measurement (arrays omitted from CSV to keep size moderate)
+                w.writerow([
+                    t, *p, *v, nis, rid, *z, *R_diag,
+                    meas.get("rcs_dbsm", np.nan), meas.get("snr_db", np.nan), meas.get("quality", np.nan)
+                ])
 
             t += dt
-
 
 if __name__ == "__main__":
     # Sensible default run for a quick end-to-end check
